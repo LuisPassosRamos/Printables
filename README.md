@@ -1,4 +1,6 @@
-# Printable Apolo - Catalogo de Impressao 3D
+# Olympus 3D — catálogo de impressão 3D
+
+**[Acesse o catálogo publicado](https://luispassosramos.github.io/Printables/)** · [Portfólio de Luis Ramos](https://luispassosramos.github.io/LuisPortifolio/)
 
 Site estatico de catalogo de produtos de impressao 3D com botoes de compra direto no WhatsApp e integracao com Google Sheets.
 
