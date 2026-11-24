@@ -14,12 +14,15 @@ Site estatico de catalogo de produtos de impressao 3D com botoes de compra diret
 
 ## Primeiros passos
 
+Use Node.js 22.18 ou superior da série 22, ou uma versão LTS mais recente.
+
 ```bash
-npm install
+npm ci
 npm run dev      # servidor de desenvolvimento em http://localhost:5173
 npm run build    # compilação de produção (saída em dist/)
 npm run preview  # pré-visualiza o build de produção localmente
 npm run lint     # ESLint
+npm test         # importação CSV com preços em reais, aspas e descrições multilinha
 ```
 
 ---
@@ -48,6 +51,8 @@ VITE_GOOGLE_SHEETS_JSON_URL=
 - Mantenha no repositorio apenas `.env.example`.
 
 ### Google Sheets
+
+O [serviço de catálogo](src/services/appSheetService.ts) converte as colunas da planilha em produtos tipados. O [leitor CSV](src/services/sheetCsv.ts) usa Papa Parse para preservar vírgulas e quebras de linha dentro de campos entre aspas.
 
 1. Publique sua planilha e copie a URL CSV/JSON de leitura.
 2. Use o schema abaixo na planilha:
