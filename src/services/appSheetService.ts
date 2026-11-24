@@ -1,3 +1,4 @@
+import { parseCsvRows } from './sheetCsv';
 import type { Product } from '../types/product';
 import { GOOGLE_SHEETS_JSON_URL } from '../config';
 import { getFallbackImageDataUrl } from '../utils/image';
@@ -171,71 +172,15 @@ function extractRows(payload: unknown): SheetsRow[] {
   return [];
 }
 
-function parseCsvLine(line: string): string[] {
-  const values: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-
-    if (char === '"') {
-      const next = line[i + 1];
-      if (inQuotes && next === '"') {
-        current += '"';
-        i += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
-      values.push(current.trim());
-      current = '';
-      continue;
-    }
-
-    current += char;
-  }
-
-  values.push(current.trim());
-  return values;
-}
-
-function parseCsvRows(rawCsv: string): SheetsRow[] {
-  const lines = rawCsv
-    .replace(/^\uFEFF/, '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  if (!lines.length) return [];
-
-  const headers = parseCsvLine(lines[0]).map((header, index) => {
-    const normalized = header.replace(/^"|"$/g, '').trim();
-    return normalized || `column_${index + 1}`;
-  });
-
-  return lines.slice(1).map((line) => {
-    const cells = parseCsvLine(line);
-    return headers.reduce<SheetsRow>((acc, header, index) => {
-      acc[header] = (cells[index] ?? '').replace(/^"|"$/g, '').trim();
-      return acc;
-    }, {});
-  });
-}
-
 function getSheetsDataUrl(): string {
   return GOOGLE_SHEETS_JSON_URL;
 }
 
-async function fetchSheetRows(dataUrl: string): Promise<SheetsRow[]> {
-  const response = await fetch(dataUrl, { method: 'GET' });
+async function fetchSheetRows(dataUrl: string, signal?: AbortSignal): Promise<SheetsRow[]> {
+  const response = await fetch(dataUrl, { signal });
 
   if (!response.ok) {
-    const responseBody = await response.text();
-    throw new Error(`HTTP ${response.status} - ${responseBody}`);
+    throw new Error(`A planilha respondeu com HTTP ${response.status}.`);
   }
 
   const contentType = response.headers.get('content-type') ?? '';
@@ -256,7 +201,7 @@ async function fetchSheetRows(dataUrl: string): Promise<SheetsRow[]> {
     const rows = extractRows(payload);
     if (rows.length > 0) return rows;
   } catch {
-    // Ignore JSON parse errors and try gviz parser below.
+    // Some published CSV endpoints return a generic content type.
   }
 
   const csvRows = parseCsvRows(rawText);
@@ -265,7 +210,7 @@ async function fetchSheetRows(dataUrl: string): Promise<SheetsRow[]> {
   return [];
 }
 
-export async function fetchProducts(): Promise<FetchProductsResult> {
+export async function fetchProducts(signal?: AbortSignal): Promise<FetchProductsResult> {
   const sheetsDataUrl = getSheetsDataUrl();
 
   if (!sheetsDataUrl) {
@@ -276,7 +221,7 @@ export async function fetchProducts(): Promise<FetchProductsResult> {
   }
 
   try {
-    const rows = await fetchSheetRows(sheetsDataUrl);
+    const rows = await fetchSheetRows(sheetsDataUrl, signal);
 
     const products = rows
       .map((row, i) => rowToProduct(row, i))
@@ -303,7 +248,7 @@ export async function fetchProducts(): Promise<FetchProductsResult> {
 
     return { products };
   } catch (error) {
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV && !signal?.aborted) {
       console.error('Error fetching products from Google Sheets:', error);
     }
     throw error instanceof Error ? error : new Error('Failed to fetch products from Google Sheets');

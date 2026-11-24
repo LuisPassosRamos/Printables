@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { ProductGrid } from './components/ProductGrid';
@@ -13,22 +13,31 @@ function App() {
   const [error, setError] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
   const [showSplash, setShowSplash] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
-  const loadProducts = useCallback(() => {
+  const retryLoading = () => {
     setLoading(true);
     setError('');
-    fetchProducts()
-      .then(({ products }) => setProducts(products))
+    setLoadAttempt((attempt) => attempt + 1);
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+    fetchProducts(signal)
+      .then(({ products }) => {
+        if (!signal.aborted) setProducts(products);
+      })
       .catch(() => {
+        if (signal.aborted) return;
         setProducts([]);
         setError('Não foi possível carregar o catálogo. Verifique sua conexão e tente novamente.');
       })
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+      .finally(() => {
+        if (!signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [loadAttempt]);
 
   const tags = useMemo(() => extractUniqueTags(products), [products]);
 
@@ -49,7 +58,7 @@ function App() {
               <p className="mt-2 text-sm text-red-600">{error}</p>
               <div className="mt-5 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
                 <button
-                  onClick={loadProducts}
+                  onClick={retryLoading}
                   className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700"
                 >
                   Tentar novamente
